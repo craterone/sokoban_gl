@@ -15,9 +15,15 @@ pkg_check_modules(GLM REQUIRED IMPORTED_TARGET glm)
 
 file(GLOB_RECURSE SOURCES_FILES ${CMAKE_SOURCE_DIR}/src/*.cc ${CMAKE_SOURCE_DIR}/src/*.h)
 
-add_executable(${PROJECT_NAME} ${SOURCES_FILES} main.cc)
+add_executable(${PROJECT_NAME} 
+${SOURCES_FILES} 
+main.cc
+# stb_test.cc
+)
 
-target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/third_party)
+target_include_directories(${PROJECT_NAME} PUBLIC 
+${CMAKE_SOURCE_DIR}/src 
+${CMAKE_SOURCE_DIR}/third_party)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE 
   PkgConfig::GLFW3 
