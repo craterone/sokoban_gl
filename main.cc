@@ -3,6 +3,6 @@
 
 int main() {
   Game::Init();
-  Game::Run();
+  Game::thread_->join();
   return 0;
 }

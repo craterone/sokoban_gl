@@ -1,8 +1,7 @@
 #include "texture.h"
 
-// GLEW
-#define GLEW_STATIC
-#include <GL/glew.h>
+#include <GLES3/gl3.h>
+
 
 Texture::Texture()
     : Width(0), Height(0), Internal_Format(GL_RGB), Image_Format(GL_RGB),

@@ -1,110 +1,163 @@
 
 #include "game.h"
 
+#include <chrono>
 #include <iostream>
+
+#include <EGL/egl.h>
+#include <GL/gl.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <memory>
+#include <strings.h>
+#include <thread>
 
 #include "face.h"
 #include "loader.h"
 #include "renderer.h"
+#include "thread_queue.h"
 
-GLFWwindow *Game::window_ = nullptr;
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 std::map<std::string, Texture *> Game::textures;
+std::unique_ptr<std::thread> Game::thread_;
+ThreadQueue *Game::q_;
 
-const int kWidth = 800;
-const int kHeight = 600;
+const int kWidth = 640;
+const int kHeight = 480;
 
 Renderer *renderer;
 Face *face;
+char *rgb_data_;
+// void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
+//   // make sure the viewport matches the new window dimensions; note that
+//   width
+//   // and height will be significantly larger than specified on retina
+//   displays. glViewport(0, 0, width, height);
+// }
 
-void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
-  // make sure the viewport matches the new window dimensions; note that width
-  // and height will be significantly larger than specified on retina displays.
-  glViewport(0, 0, width, height);
-}
+static const int pbufferWidth = kWidth;
+static const int pbufferHeight = kHeight;
+
+static const EGLint configAttribs[] = { //
+    EGL_SURFACE_TYPE,
+    EGL_PBUFFER_BIT,
+    EGL_BLUE_SIZE,
+    8,
+    EGL_GREEN_SIZE,
+    8,
+    EGL_RED_SIZE,
+    8,
+    EGL_DEPTH_SIZE,
+    8,
+    EGL_RENDERABLE_TYPE,
+    EGL_OPENGL_BIT,
+    EGL_NONE};
+
+static const EGLint pbufferAttribs[] = {
+    EGL_WIDTH, pbufferWidth, EGL_HEIGHT, pbufferHeight, EGL_NONE,
+};
 
 Game::Game() {}
+
+EGLDisplay eglDpy;
+EGLint major, minor;
+
+// 2. Select an appropriate configuration
+EGLint numConfigs;
+EGLConfig eglCfg;
+EGLSurface eglSurf;
+EGLContext eglCtx;
+
 void Game::Init() {
-  // glfw: initialize and configure
-  // ------------------------------
-  glfwInit();
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  q_ = new ThreadQueue();
+  thread_ = std::make_unique<std::thread>([]() {
+    rgb_data_ = new char[kWidth * kHeight * 4];
+    eglDpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
 
-#ifdef __APPLE__
-  glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-#endif
+    eglInitialize(eglDpy, &major, &minor);
 
-  window_ = glfwCreateWindow(kWidth, kHeight, "Sokoban", NULL, NULL);
-  if (window_ == NULL) {
-    std::cout << "Failed to create GLFW window" << std::endl;
-    glfwTerminate();
-    exit(-1);
-  }
-  glfwMakeContextCurrent(window_);
+    eglChooseConfig(eglDpy, configAttribs, &eglCfg, 1, &numConfigs);
 
-  glfwSetKeyCallback(window_, Game::ProcessInput);
-  glfwSetFramebufferSizeCallback(window_, framebuffer_size_callback);
+    // 3. Create a surface
+    eglSurf = eglCreatePbufferSurface(eglDpy, eglCfg, pbufferAttribs);
 
-  glewInit();
+    // 4. Bind the API
+    eglBindAPI(EGL_OPENGL_API);
 
-  glEnable(GL_BLEND);
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // 5. Create a context and make it current
+    eglCtx = eglCreateContext(eglDpy, eglCfg, EGL_NO_CONTEXT, NULL);
 
-  // load textures
-  // auto t = Loader::loadTexture("assets/background.jpg");
-  auto t = Loader::loadTexture("assets/awesomeface.png");
+    eglMakeCurrent(eglDpy, eglSurf, eglSurf, eglCtx);
 
-  std::string key = "t1";
-  textures[key] = t;
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-  // init renderer
-  renderer = new Renderer();
-  renderer->Init();
+    // load textures
+    // auto t = Loader::loadTexture("assets/background.jpg");
+    auto t = Loader::loadTexture("/root/sokoban_gl/assets/awesomeface.png");
 
-  face = new Face(t, kWidth, kHeight);
+    std::string key = "t1";
+    textures[key] = t;
 
-  // TODO(CC): move inside renderer
-  glm::mat4 projection =
-      glm::ortho(0.0f, static_cast<float>(kWidth), static_cast<float>(kHeight),
-                 0.0f, -1.0f, 1.0f);
-  renderer->shader_->SetMatrix4("projection", projection, true);
+    // init renderer
+    renderer = new Renderer();
+    renderer->Init();
+
+    face = new Face(t, kWidth, kHeight);
+
+    // TODO(CC): move inside renderer
+    glm::mat4 projection =
+        glm::ortho(0.0f, static_cast<float>(kWidth),
+                   static_cast<float>(kHeight), 0.0f, -1.0f, 1.0f);
+    renderer->shader_->SetMatrix4("projection", projection, true);
+
+    // glReadPixels(0, 0, kWidth, kHeight, GL_RGBA, GL_UNSIGNED_BYTE,
+    // rgb_data_);
+
+    // // stbi_write_png("/root/webrtc-streamer/1.png", kWidth,
+    // stbi_write_png("/root/sokoban_gl/0.png", kWidth, kHeight, 4,
+    //                (unsigned char *)rgb_data_, kWidth * 4);
+
+    // bzero(rgb_data_, kWidth * kHeight * 4);
+
+    while (true) {
+      Game::Draw();
+
+      std::this_thread::sleep_for(std::chrono::milliseconds(40));
+    }
+  });
 }
 
-void Game::Run() {
-  while (!glfwWindowShouldClose(window_)) {
-
-    // Game::ProcessInput();
-    Game::Draw();
-
-    glfwSwapBuffers(window_);
-    glfwPollEvents();
-  }
-
-  glfwTerminate();
-}
-
-void Game::ProcessInput(GLFWwindow *window, int key, int scancode, int action,
-                        int mode) {
-  if (glfwGetKey(window_, GLFW_KEY_Q) == GLFW_PRESS) {
-    glfwSetWindowShouldClose(window_, true);
-  } else if (glfwGetKey(window_, GLFW_KEY_UP) == GLFW_PRESS) {
+void Game::ProcessInput(std::string direction) {
+  if (direction == "up") {
     face->Move(Face::Direction::Up);
-  } else if (glfwGetKey(window_, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+  } else if (direction == "right") {
     face->Move(Face::Direction::Right);
-  } else if (glfwGetKey(window_, GLFW_KEY_DOWN) == GLFW_PRESS) {
+  } else if (direction == "down") {
     face->Move(Face::Direction::Down);
-  } else if (glfwGetKey(window_, GLFW_KEY_LEFT) == GLFW_PRESS) {
+  } else if ("left") {
     face->Move(Face::Direction::Left);
   }
 }
-
+int i = 0;
 void Game::Draw() {
   glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
 
   renderer->Draw(face->t_, face->position_, face->size_);
+
+  auto c = std::make_shared<Chunk>(kWidth, kHeight,i);
+
+  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  glReadPixels(0, 0, kWidth, kHeight, GL_RGBA, GL_UNSIGNED_BYTE, c->data_);
+
+  // stbi_write_png("/root/sokoban_gl/0.png", kWidth, kHeight, 4,
+  //                (unsigned char *)c->data_, kWidth * 4);
+
+  q_->pushPacket(c);
+
+  i++;
 }

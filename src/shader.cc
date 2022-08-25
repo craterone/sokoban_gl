@@ -2,9 +2,7 @@
 
 #include <iostream>
 
-// GLEW
-#define GLEW_STATIC
-#include <GL/glew.h>
+#include <GLES3/gl3.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -27,19 +25,12 @@ void Shader::Compile(const char *vertexSource, const char *fragmentSource,
   glShaderSource(sFragment, 1, &fragmentSource, NULL);
   glCompileShader(sFragment);
   checkCompileErrors(sFragment, "FRAGMENT");
-  // if geometry shader source code is given, also compile geometry shader
-  if (geometrySource != nullptr) {
-    gShader = glCreateShader(GL_GEOMETRY_SHADER);
-    glShaderSource(gShader, 1, &geometrySource, NULL);
-    glCompileShader(gShader);
-    checkCompileErrors(gShader, "GEOMETRY");
-  }
+
   // shader program
   this->ID = glCreateProgram();
   glAttachShader(this->ID, sVertex);
   glAttachShader(this->ID, sFragment);
-  if (geometrySource != nullptr)
-    glAttachShader(this->ID, gShader);
+
   glLinkProgram(this->ID);
   checkCompileErrors(this->ID, "PROGRAM");
   // delete the shaders as they're linked into our program now and no longer

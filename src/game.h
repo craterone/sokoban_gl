@@ -2,15 +2,12 @@
 #define SRC_GAME_H_
 
 #include <map>
-
-// GLEW
-#define GLEW_STATIC
-#include <GL/glew.h>
-
-// GLFW
-#include <GLFW/glfw3.h>
+#include <string>
+#include <thread>
+#include <memory>
 
 #include "texture.h"
+#include "thread_queue.h"
 
 class Game {
 public:
@@ -20,10 +17,12 @@ public:
   static void Run();
 
   static void Draw();
-  static void ProcessInput(GLFWwindow *window, int key, int scancode,
-                           int action, int mode);
+  static void ProcessInput(std::string direction);
 
-  static GLFWwindow *window_;
   static std::map<std::string, Texture *> textures;
+  static std::unique_ptr<std::thread> thread_;
+  
+  static ThreadQueue *q_ ;
+
 };
 #endif /* SRC_GAME_H_ */

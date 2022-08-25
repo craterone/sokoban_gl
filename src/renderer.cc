@@ -1,9 +1,7 @@
 
 #include "renderer.h"
 
-// GLEW
-#define GLEW_STATIC
-#include <GL/glew.h>
+#include <GLES3/gl3.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -24,7 +22,7 @@ constexpr float vertices[] = {
 Renderer::Renderer() {}
 
 void Renderer::Init() {
-  shader_ = Loader::loadShader("shaders/sprite.vs", "shaders/sprite.fs");
+  shader_ = Loader::loadShader("/root/sokoban_gl/shaders/sprite.vs", "/root/sokoban_gl/shaders/sprite.fs");
   LoadVertex();
 }
 
